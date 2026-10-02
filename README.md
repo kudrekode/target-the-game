@@ -33,3 +33,9 @@ npm test
 ```
 
 The test independently replays 3,000 generated solution paths (1,000 per band), checks pools and target bounds, samples shorter shortcuts, and verifies intermediate hints and undo IDs. The quality-pass sample achieved 100% exact solvability across all three bands. This describes fresh rounds; player choices can make the remaining tiles unsolvable.
+
+## Presentation feedback
+
+`src/services/feedbackService.ts` exposes lightweight feedback events for tile/operator selection, combinations, merges, invalid moves, hint, undo, urgency, and round outcomes. `setHapticHandler(handler)` lets a future native bridge receive `lightTap`, `mergeImpact`, `invalidImpact`, and `successImpact`; browsers do not vibrate. Sound is synthesized locally with Web Audio.
+
+The board preserves six visual slots through operations and undo. The portrait layouts were checked at 390×844 and 320×568, including exact, off-by-1, wider-miss, and timeout results. CSS and Web Animations respect reduced-motion preferences.
