@@ -1,0 +1,22 @@
+export const BALANCE = {
+  seconds: 60,
+  targetMin: 100, targetMax: 999,
+  smallMin: 1, smallMax: 10, smallCount: 4,
+  largePool: [25, 50, 75, 100], largeCount: 2,
+  allowDuplicateLarge: false,
+  generationAttempts: 180,
+  generationTimeBudgetMs: 18, generationSearchMs: 4, generationSearchNodes: 12000,
+  difficulty: {
+    mediumStreak: 2, hardStreak: 5,
+    Easy: { minOperations: 1, maxOperations: 3 },
+    Medium: { minOperations: 3, maxOperations: 4 },
+    Hard: { minOperations: 4, maxOperations: 5 },
+  },
+  hintNodeBudget: 120000, hintTimeBudgetMs: 40,
+  soundVolume: 0.045, mergeMs: 170,
+  exactPoints: 1000,
+  proximity: [{ distance: 5, points: 500 }, { distance: 10, points: 300 }, { distance: 25, points: 150 }, { distance: 50, points: 75 }],
+  minimumPoints: 25, timePointsPerSecond: 10,
+  efficiencyPoints: 50, efficiencyMaxOperations: 5,
+  streakStep: 0.1, streakCap: 2,
+};
