@@ -1,5 +1,7 @@
 # Target
 
+The native iPhone app is in [`ios/`](ios/README.md). Open `ios/Target.xcodeproj` with Xcode 26.3 and install the iOS 26 platform/runtime. The browser implementation below remains the gameplay reference.
+
 A portrait-first Classic number puzzle built with TypeScript, Vite, and plain HTML/CSS. The project specification is in `spec.md`.
 
 ## Run
