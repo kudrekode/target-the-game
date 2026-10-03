@@ -32,6 +32,7 @@ final class GameViewModel {
     @ObservationIgnored private let store: StatsStore
     @ObservationIgnored private let feedback = FeedbackService()
     @ObservationIgnored private let audio = AudioService()
+    @ObservationIgnored private var timerTask: Task<Void, Never>?
     @ObservationIgnored private var mergeTask: Task<Void, Never>?
     @ObservationIgnored private var hintTask: Task<Void, Never>?
     @ObservationIgnored private var version = 0
@@ -55,13 +56,15 @@ final class GameViewModel {
                              operations: game.operations, streak: streak + 1).base
     }
 
-    func start() {
+    func start() { start(round: RoundGenerator().generate(streak: streak)) }
+
+    func start(round: Round) {
         cancelWork()
         version += 1
         revision = 0
         settled = false
         lastWarning = 11
-        game = GameState(round: RoundGenerator().generate(streak: streak), now: clock.now())
+        game = GameState(round: round, now: clock.now())
         seconds = Balance.seconds
         firstID = nil
         operation = nil
@@ -69,6 +72,7 @@ final class GameViewModel {
         rejectedIDs = []
         message = "Number → operator → number"
         screen = .game
+        startTimer()
         feedback.lightTap()
     }
 
@@ -103,7 +107,7 @@ final class GameViewModel {
             let resultTile = try game!.combine(first: firstID, operation: operation, second: id, now: now)
             revision += 1
             hintTask?.cancel()
-            self.firstID = nil
+            self.firstID = resultTile.id
             self.operation = nil
             rejectedIDs = []
             busy = true
@@ -188,6 +192,8 @@ final class GameViewModel {
     func sceneChanged(active isActive: Bool) {
         active = isActive
         if !isActive {
+            timerTask?.cancel()
+            timerTask = nil
             audio.stop()
             hintTask?.cancel()
             mergeTask?.cancel()
@@ -196,6 +202,21 @@ final class GameViewModel {
         }
         // Deadlines keep running while inactive, suspended, or locked.
         tick()
+        if isActive { startTimer() }
+    }
+
+    private func startTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+        guard active, screen == .game, game?.result == nil else { return }
+        timerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(100)) }
+                catch { return }
+                guard let self, active, screen == .game else { return }
+                tick()
+            }
+        }
     }
 
     private func acceptInput() -> Bool {
@@ -205,8 +226,14 @@ final class GameViewModel {
     }
 
     private func settle(at now: TimeInterval, reveal: Bool) {
+        // Avoid publishing a game-state mutation on every timer tick.
+        guard let current = game,
+              current.result != nil || current.closest.value == current.round.target ||
+              current.tiles.count == 1 || current.remaining(at: now) == 0 else { return }
         guard let result = game?.finishIfNeeded(now: now, streak: streak) else { return }
         seconds = result.seconds
+        timerTask?.cancel()
+        timerTask = nil
         if !settled {
             settled = true
             streak = result.streak
@@ -228,6 +255,8 @@ final class GameViewModel {
     }
 
     private func cancelWork() {
+        timerTask?.cancel()
+        timerTask = nil
         mergeTask?.cancel()
         hintTask?.cancel()
         merge = nil

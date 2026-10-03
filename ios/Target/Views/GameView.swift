@@ -162,6 +162,7 @@ private struct TimerView: View {
             }.foregroundStyle(colour).monospacedDigit().frame(minWidth: 64, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("roundTimer")
         .accessibilityLabel("Time remaining")
         .accessibilityValue("\(Int(ceil(seconds))) seconds")
     }

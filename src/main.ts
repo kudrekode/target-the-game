@@ -132,13 +132,13 @@ async function selectTile(id: number) {
   const centerX = (rects[0].left + rects[0].width / 2 + rects[1].left + rects[1].width / 2) / 2;
   const centerY = (rects[0].top + rects[0].height / 2 + rects[1].top + rects[1].height / 2) / 2;
   nodes.forEach(el => el.classList.add('merging'));
-  await Promise.all(nodes.map((el, i) => el.animate([
+  await Promise.allSettled(nodes.map((el, i) => el.animate([
     { transform: 'translate(0, 0) scale(1)', opacity: 1 },
     { transform: 'translate(0, 0) scale(1.06)', opacity: 1, offset: .15 },
     { transform: `translate(${centerX - rects[i].left - rects[i].width / 2}px, ${centerY - rects[i].top - rects[i].height / 2}px) scale(.55)`, opacity: 0 },
   ], { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : BALANCE.mergeMs, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }).finished));
   if (version !== roundVersion || screen !== 'game') return;
-  busy = false; first = null; operator = null;
+  busy = false; first = result.tile.id; operator = null;
   renderBoard('tile' in result ? result.tile.id : undefined);
   feedback('mergeImpact');
   const newTile = document.querySelector<HTMLElement>('.tile.new');

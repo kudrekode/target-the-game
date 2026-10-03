@@ -79,6 +79,7 @@ enum DesignSystem {
                         Capsule().fill(Palette.paper).frame(width: 24, height: 3).padding(.bottom, 8)
                     }
                 }
+                .contentShape(RoundedRectangle(cornerRadius: Radius.key))
                 .offset(y: configuration.isPressed && !reduceMotion ? 2 : 0)
                 .opacity(enabled || !operatorKey ? 1 : 0.4)
                 .animation(reduceMotion ? nil : Motion.press, value: configuration.isPressed)

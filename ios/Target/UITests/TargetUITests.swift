@@ -49,7 +49,7 @@ final class TargetUITests: XCTestCase {
             let b = String(text[try XCTUnwrap(Range(match.range(at: 3), in: text))])
             let first = app.buttons.matching(NSPredicate(format: "label == %@", "Number \(a)")).firstMatch
             let firstIdentifier = first.identifier
-            first.tap()
+            if !first.isSelected { first.tap() }
             let names = ["+": "Add", "−": "Subtract", "×": "Multiply", "÷": "Divide"]
             app.buttons[try XCTUnwrap(names[operation])].tap()
             let second = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Number \(b)", firstIdentifier)).firstMatch
@@ -64,6 +64,32 @@ final class TargetUITests: XCTestCase {
         app.buttons["nextRound"].tap()
         XCTAssertTrue(app.buttons["numberSlot0"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["STREAK 1"].exists)
+    }
+
+    @MainActor
+    func testTimerRunsWithoutTapsAndIndependentCombination() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["homePlay"].tap()
+        XCTAssertTrue(app.buttons["numberSlot0"].waitForExistence(timeout: 5))
+        let timer = app.descendants(matching: .any).matching(identifier: "roundTimer").firstMatch
+        let initial = timer.value as? String
+        XCTAssertNotNil(initial)
+        XCTAssertTrue(wait { timer.value as? String != initial })
+        app.buttons["numberSlot0"].tap()
+        app.buttons["Add"].tap()
+        app.buttons["numberSlot1"].tap()
+        XCTAssertTrue(wait { !app.buttons["numberSlot1"].exists && app.buttons["undoButton"].isEnabled })
+        let result = app.buttons["numberSlot0"].label
+        app.buttons["numberSlot2"].tap()
+        XCTAssertTrue(app.buttons["numberSlot2"].isSelected)
+        app.buttons["Add"].tap()
+        app.buttons["numberSlot3"].tap()
+        XCTAssertTrue(wait { !app.buttons["numberSlot3"].exists && app.buttons["undoButton"].isEnabled })
+        XCTAssertEqual(app.buttons["numberSlot0"].label, result)
+        app.buttons["undoButton"].tap()
+        XCTAssertTrue(app.buttons["numberSlot3"].exists)
+        XCTAssertEqual(app.buttons["numberSlot0"].label, result)
     }
 
     @MainActor

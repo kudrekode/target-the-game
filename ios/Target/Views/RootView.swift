@@ -29,11 +29,6 @@ struct RootView: View {
         .onChange(of: reduceMotion, initial: true) { _, value in model.reduceMotion = value }
         .task {
             model.sceneChanged(active: scenePhase == .active)
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .milliseconds(100)) }
-                catch { break }
-                if scenePhase == .active { model.tick() }
-            }
         }
     }
 }

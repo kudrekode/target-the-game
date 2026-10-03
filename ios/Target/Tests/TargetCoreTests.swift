@@ -272,6 +272,59 @@ final class TargetCoreTests: XCTestCase {
         XCTAssertEqual(store.load(), Stats())
     }
 
+    #if !CORE_TEST_RUNNER
+    @MainActor
+    func testTimerAdvancesWithoutInputAndRestartsAfterInactivity() async throws {
+        let model = GameViewModel()
+        model.start(round: Round(target: 347, numbers: [50, 7, 3], difficulty: .easy, solution: []))
+        defer { model.sceneChanged(active: false) }
+        let initial = model.seconds
+        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertLessThan(model.seconds, initial - 0.2)
+        model.sceneChanged(active: false)
+        let paused = model.seconds
+        try await Task.sleep(for: .milliseconds(250))
+        model.sceneChanged(active: true)
+        XCTAssertLessThan(model.seconds, paused - 0.2)
+        let resumed = model.seconds
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertLessThan(model.seconds, resumed - 0.1)
+    }
+
+    @MainActor
+    func testMergeCanChainOrSwitchToIndependentNumbersAndUndo() async throws {
+        let model = GameViewModel()
+        let round = Round(target: 999, numbers: [2, 3, 4, 5, 25, 50], difficulty: .easy, solution: [])
+        model.start(round: round)
+        defer { model.sceneChanged(active: false) }
+        model.selectTile(0)
+        model.selectOperation(.add)
+        model.selectTile(1)
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertFalse(model.busy)
+        XCTAssertEqual(model.first?.value, 5)
+        XCTAssertNil(model.operation)
+        // Start an independent calculation, retaining the first result in its slot.
+        model.selectTile(2)
+        XCTAssertEqual(model.firstID, 2)
+        model.selectOperation(.multiply)
+        model.selectTile(3)
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertEqual(model.first?.value, 20)
+        XCTAssertEqual(model.game?.tiles.first { $0.id == 6 }?.value, 5)
+        model.selectOperation(.add)
+        model.selectTile(6)
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertEqual(model.first?.value, 25)
+        XCTAssertEqual(model.game?.operations, 3)
+        model.undo()
+        XCTAssertNil(model.firstID)
+        XCTAssertNil(model.operation)
+        XCTAssertEqual(model.game?.tiles.map(\.value), [5, 20, 25, 50])
+        XCTAssertEqual(model.game?.operations, 2)
+    }
+    #endif
+
     private func intermediateState() -> GameState {
         GameState(round: Round(target: 347, numbers: [50, 7, 3], difficulty: .easy,
                                solution: [SolutionStep(first: 0, second: 1, operation: .multiply, value: 350, resultID: 3),
