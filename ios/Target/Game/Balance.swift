@@ -6,8 +6,10 @@ enum Balance {
     static let smallRange = 1...10
     static let largePool = [25, 50, 75, 100]
     static let generationAttempts = 180
-    static let generationSeconds: TimeInterval = 0.018
-    static let generationSearch = SearchBudget(nodes: 12_000, seconds: 0.004)
+    static let generationSeconds: TimeInterval = 0.030
+    static let mediumLevel = 3
+    static let hardLevel = 6
+    static let maximumLevel = 8
     static let hintSearch = SearchBudget(nodes: 120_000, seconds: 0.040)
     // Match JavaScript's safe integer range, even on 64-bit iPhones.
     static let maximumValue = 9_007_199_254_740_991
@@ -24,11 +26,11 @@ enum Balance {
 enum Difficulty: String, CaseIterable, Sendable {
     case easy, medium, hard
 
-    var operationRange: ClosedRange<Int> {
+    var operations: Int {
         switch self {
-        case .easy: 1...3
-        case .medium: 3...4
-        case .hard: 4...5
+        case .easy: 2
+        case .medium: 3
+        case .hard: 4
         }
     }
 

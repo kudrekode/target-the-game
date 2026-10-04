@@ -42,32 +42,65 @@ final class TargetCoreTests: XCTestCase {
     func testStreakProgression() {
         XCTAssertEqual(Streak.next(4, exact: true), 5)
         XCTAssertEqual(Streak.next(4, exact: false), 0)
-        XCTAssertEqual(Streak.difficulty(for: 0), .easy)
-        XCTAssertEqual(Streak.difficulty(for: 1), .easy)
-        XCTAssertEqual(Streak.difficulty(for: 2), .medium)
-        XCTAssertEqual(Streak.difficulty(for: 4), .medium)
-        XCTAssertEqual(Streak.difficulty(for: 5), .hard)
         XCTAssertEqual(Streak.multiplier(for: 1), 1)
         XCTAssertEqual(Streak.multiplier(for: 3), 1.2, accuracy: 0.00001)
         XCTAssertEqual(Streak.multiplier(for: 50), 2)
     }
 
+    func testDifficultyProgressionAndGradualRelief() {
+        var level = 0
+        var operations: [Int] = []
+        for _ in 0..<10 {
+            operations.append(DifficultyProgression.difficulty(for: level).operations)
+            level = DifficultyProgression.next(level, exact: true)
+        }
+        XCTAssertEqual(operations, [2, 2, 2, 3, 3, 3, 4, 4, 4, 4])
+        XCTAssertEqual(level, 8)
+        level = DifficultyProgression.next(level, exact: false)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: level), .hard)
+        level = DifficultyProgression.next(DifficultyProgression.next(level, exact: false), exact: false)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: level), .medium)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: DifficultyProgression.next(level, exact: true)), .hard)
+        XCTAssertEqual(DifficultyProgression.next(0, exact: false), 0)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: 2), .easy)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: 3), .medium)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: 5), .medium)
+        XCTAssertEqual(DifficultyProgression.difficulty(for: 6), .hard)
+        for level in 0...Balance.maximumLevel {
+            let before = DifficultyProgression.difficulty(for: level).operations
+            let afterMiss = DifficultyProgression.difficulty(for: DifficultyProgression.next(level, exact: false)).operations
+            let afterExact = DifficultyProgression.difficulty(for: DifficultyProgression.next(level, exact: true)).operations
+            XCTAssertTrue((0...1).contains(before - afterMiss))
+            XCTAssertTrue((0...1).contains(afterExact - before))
+        }
+    }
+
+    func testExhaustiveShortcutCheckHandlesBranchesAndDuplicateTiles() {
+        XCTAssertFalse(Solver.canReachWithin(numbers: [2, 2, 25], target: 100, maxOperations: 1))
+        XCTAssertTrue(Solver.canReachWithin(numbers: [2, 2, 25], target: 100, maxOperations: 2))
+        XCTAssertFalse(Solver.canReachWithin(numbers: [25, 5, 7, 5], target: 1500, maxOperations: 2))
+        XCTAssertTrue(Solver.canReachWithin(numbers: [25, 5, 7, 5], target: 1500, maxOperations: 3))
+        XCTAssertTrue(Solver.canReachWithin(numbers: [100, 4], target: 25, maxOperations: 1))
+        XCTAssertFalse(Solver.canReachWithin(numbers: [8, 3], target: 2, maxOperations: 1))
+    }
+
     func testGeneratedRoundsAreExactlySolvable() throws {
         var random = SeededRandom(seed: 82719)
-        for (band, streak) in [(Difficulty.easy, 0), (.medium, 2), (.hard, 5)] {
+        for (band, level) in [(Difficulty.easy, 0), (.medium, 3), (.hard, 6)] {
             var fallbackCount = 0
             var totalDepth = 0
             for _ in 0..<1_000 {
-                let round = RoundGenerator().generate(streak: streak, using: &random)
+                let round = RoundGenerator().generate(level: level, using: &random)
                 XCTAssertEqual(round.numbers.count, 6)
                 XCTAssertTrue(round.numbers.prefix(4).allSatisfy { Balance.smallRange.contains($0) })
                 XCTAssertTrue(round.numbers.suffix(2).allSatisfy { Balance.largePool.contains($0) })
                 XCTAssertEqual(Set(round.numbers.suffix(2)).count, 2)
                 XCTAssertTrue(Balance.targetRange.contains(round.target))
                 XCTAssertFalse(round.numbers.contains(round.target))
-                XCTAssertTrue(round.difficulty == band || round.difficulty == .easy)
-                XCTAssertTrue(round.difficulty.operationRange.contains(round.solution.count))
-                if round.difficulty != band { fallbackCount += 1 }
+                XCTAssertEqual(round.difficulty, band)
+                XCTAssertEqual(round.solution.count, band.operations)
+                let fallback = RoundGenerator().fallback(difficulty: band)
+                if round.target == fallback.target && round.numbers == fallback.numbers { fallbackCount += 1 }
                 totalDepth += round.solution.count
                 // Independent arithmetic replay, rather than trusting the generator or calculate().
                 var work = Dictionary(uniqueKeysWithValues: round.numbers.enumerated().map { ($0.offset, $0.element) })
@@ -101,17 +134,43 @@ final class TargetCoreTests: XCTestCase {
 
     func testDifficultyShortcutSample() {
         var random = SeededRandom(seed: 9162)
-        for streak in [2, 5] {
-            var shortcuts = 0
-            for _ in 0..<10 {
-                let round = RoundGenerator().generate(streak: streak, using: &random)
+        for level in [0, 3, 6] {
+            for _ in 0..<100 {
+                let round = RoundGenerator().generate(level: level, using: &random)
                 let result = Solver.findSolution(tiles: round.initialTiles, target: round.target, nextID: 6,
-                                                 maxOperations: Streak.difficulty(for: streak).operationRange.lowerBound - 1,
+                                                 maxOperations: round.difficulty.operations - 1,
                                                  budget: SearchBudget(nodes: 1_000_000, seconds: 1))
-                if result.steps != nil { shortcuts += 1 }
+                XCTAssertTrue(result.complete, "Independent shortcut audit must finish")
+                XCTAssertNil(result.steps, "Difficulty must reject shorter paths")
             }
-            // Difficulty rejects shortcuts when budgets permit; it is deliberately not an absolute promise.
-            print("Streak \(streak): \(shortcuts)/10 sampled rounds have a shorter path")
+            print("Level \(level): 0/100 shortcuts")
+        }
+    }
+
+    func testFallbacksPreserveMinimumDifficulty() throws {
+        var random = SeededRandom(seed: 1204)
+        for band in Difficulty.allCases {
+            let round = RoundGenerator().fallback(difficulty: band)
+            XCTAssertEqual(round.difficulty, band)
+            let level = band == .easy ? 0 : band == .medium ? Balance.mediumLevel : Balance.hardLevel
+            for generator in [RoundGenerator(attemptLimit: 0), RoundGenerator(timeBudget: 0)] {
+                let fallback = generator.generate(level: level, using: &random)
+                XCTAssertEqual(fallback.target, round.target)
+                XCTAssertEqual(fallback.numbers, round.numbers)
+                XCTAssertEqual(fallback.solution, round.solution)
+                XCTAssertEqual(fallback.difficulty, band)
+            }
+            let result = Solver.findSolution(tiles: round.initialTiles, target: round.target, nextID: 6,
+                                             maxOperations: band.operations,
+                                             budget: SearchBudget(nodes: 1_000_000, seconds: 1))
+            XCTAssertTrue(result.complete)
+            XCTAssertEqual(result.steps?.count, band.operations)
+            var state = GameState(round: round, now: 0)
+            for (index, step) in round.solution.enumerated() {
+                let move = try state.combine(first: step.first, operation: step.operation, second: step.second, now: Double(index))
+                XCTAssertEqual(move.value, step.value)
+            }
+            XCTAssertEqual(state.closest.value, round.target)
         }
     }
 

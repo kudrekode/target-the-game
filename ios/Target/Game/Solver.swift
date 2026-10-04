@@ -14,6 +14,42 @@ struct SearchResult: Sendable {
 /// Iterative depth search returns the shortest path it proves within a bounded budget.
 /// Failure keys use values; returned paths retain IDs for duplicate tiles and undo.
 enum Solver {
+    // Exhaust every expression on disjoint subsets of up to four tiles for
+    // generation. Shortcut rejection must not depend on a search timeout.
+    static func canReachWithin(numbers: [Int], target: Int, maxOperations: Int) -> Bool {
+        var values = Array(repeating: Set<Int>(), count: 1 << numbers.count)
+        for mask in 1..<values.count {
+            let count = mask.nonzeroBitCount
+            if count > maxOperations + 1 { continue }
+            var results: Set<Int> = []
+            if count == 1 {
+                results.insert(numbers[mask.trailingZeroBitCount])
+            } else {
+                var left = (mask - 1) & mask
+                while left > 0 {
+                    let right = mask ^ left
+                    if right > 0 && left < right {
+                        for a in values[left] {
+                            for b in values[right] {
+                                let sum = a.addingReportingOverflow(b)
+                                if !sum.overflow && sum.partialValue <= Balance.maximumValue { results.insert(sum.partialValue) }
+                                let product = a.multipliedReportingOverflow(by: b)
+                                if !product.overflow && product.partialValue <= Balance.maximumValue { results.insert(product.partialValue) }
+                                if a != b { results.insert(abs(a - b)) }
+                                if a % b == 0 { results.insert(a / b) }
+                                if b % a == 0 { results.insert(b / a) }
+                            }
+                        }
+                    }
+                    left = (left - 1) & mask
+                }
+            }
+            if results.contains(target) { return true }
+            values[mask] = results
+        }
+        return false
+    }
+
     static func findSolution(tiles: [Tile], target: Int, nextID: Int,
                              maxOperations: Int, budget: SearchBudget) -> SearchResult {
         var search = Search(target: target, budget: budget)

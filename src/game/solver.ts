@@ -4,6 +4,32 @@ export interface SolverTile { id: number; value: number }
 export interface SolutionStep { first: number; second: number; operator: Operator; value: number; resultId: number }
 export interface SearchOptions { maxOperations: number; nodeBudget: number; timeBudgetMs: number }
 
+// Exhaustive shortcut check for generation (at most three operations / four
+// tiles). Disjoint tile masks cover every expression tree, including branches
+// and duplicate values, without a device-speed-dependent search timeout.
+export function canReachWithin(numbers: number[], target: number, maxOperations: number): boolean {
+  const values: Set<number>[] = Array.from({ length: 1 << numbers.length }, () => new Set());
+  for (let mask = 1; mask < values.length; mask++) {
+    const count = mask.toString(2).replaceAll('0', '').length;
+    if (count > maxOperations + 1) continue;
+    const results = values[mask];
+    if (count === 1) results.add(numbers[Math.log2(mask)]);
+    else for (let left = (mask - 1) & mask; left; left = (left - 1) & mask) {
+      const right = mask ^ left;
+      if (!right || left > right) continue;
+      for (const a of values[left]) for (const b of values[right]) {
+        if (Number.isSafeInteger(a + b)) results.add(a + b);
+        if (Number.isSafeInteger(a * b)) results.add(a * b);
+        if (a !== b) results.add(Math.abs(a - b));
+        if (a % b === 0) results.add(a / b);
+        if (b % a === 0) results.add(b / a);
+      }
+    }
+    if (results.has(target)) return true;
+  }
+  return false;
+}
+
 // Iterative depth search prefers short solutions. Failed value states are memoized;
 // IDs are retained in the returned path so duplicate numbers and undo stay safe.
 export function findSolution(tiles: SolverTile[], target: number, nextId: number, options: SearchOptions) {

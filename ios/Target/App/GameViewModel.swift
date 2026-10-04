@@ -16,6 +16,7 @@ final class GameViewModel {
     private(set) var game: GameState?
     private(set) var stats: Stats
     private(set) var streak = 0
+    private(set) var difficultyLevel = 0
     private(set) var seconds: TimeInterval = Balance.seconds
     private(set) var firstID: Int?
     private(set) var operation: Operation?
@@ -56,7 +57,7 @@ final class GameViewModel {
                              operations: game.operations, streak: streak + 1).base
     }
 
-    func start() { start(round: RoundGenerator().generate(streak: streak)) }
+    func start() { start(round: RoundGenerator().generate(level: difficultyLevel)) }
 
     func start(round: Round) {
         cancelWork()
@@ -237,6 +238,7 @@ final class GameViewModel {
         if !settled {
             settled = true
             streak = result.streak
+            difficultyLevel = DifficultyProgression.next(difficultyLevel, exact: result.exact)
             stats.record(result)
             store.save(stats)
         }

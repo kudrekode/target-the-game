@@ -1,12 +1,10 @@
 import { BALANCE } from './balance';
 import { calculate, OPERATORS } from './operations';
-import { findSolution, type SolutionStep } from './solver';
-export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+import { canReachWithin, type SolutionStep } from './solver';
+import { difficultyForLevel, type Difficulty } from './difficulty';
+export type { Difficulty } from './difficulty';
 export interface GeneratedRound { target: number; numbers: number[]; difficulty: Difficulty; solution: SolutionStep[] }
 const randomInt = (min: number, max: number) => min + Math.floor(Math.random() * (max - min + 1));
-export function difficultyForStreak(streak: number): Difficulty {
-  return streak >= BALANCE.difficulty.hardStreak ? 'Hard' : streak >= BALANCE.difficulty.mediumStreak ? 'Medium' : 'Easy';
-}
 function generateNumbers(): number[] {
   const numbers = Array.from({ length: BALANCE.smallCount }, () => randomInt(BALANCE.smallMin, BALANCE.smallMax));
   const pool = [...BALANCE.largePool];
@@ -17,16 +15,16 @@ function generateNumbers(): number[] {
   }
   return numbers;
 }
-export function generateRound(streak = 0): GeneratedRound {
-  const difficulty = difficultyForStreak(streak);
+export function generateRound(level = 0): GeneratedRound {
+  const difficulty = difficultyForLevel(level);
   const band = BALANCE.difficulty[difficulty];
   const deadline = performance.now() + BALANCE.generationTimeBudgetMs;
-  let fallback: GeneratedRound | undefined;
   for (let attempt = 0; attempt < BALANCE.generationAttempts; attempt++) {
+    if (performance.now() >= deadline) break;
     const numbers = generateNumbers();
     const work = numbers.map((value, id) => ({ value, id }));
     const steps: SolutionStep[] = [];
-    const count = randomInt(band.minOperations, band.maxOperations);
+    const count = band.operations;
     for (let i = 0; i < count; i++) {
       const aIndex = randomInt(0, work.length - 1);
       const bIndex = (aIndex + randomInt(1, work.length - 1)) % work.length;
@@ -50,17 +48,30 @@ export function generateRound(streak = 0): GeneratedRound {
     for (const step of [...steps].reverse()) if (used.has(step.resultId)) { used.add(step.first); used.add(step.second); }
     if (steps.some(step => !used.has(step.resultId))) continue;
     const candidate = { target: final.value, numbers, difficulty, solution: steps };
-    fallback ??= candidate;
-    if (difficulty === 'Easy') return candidate;
-    const shallow = findSolution(numbers.map((value, id) => ({ value, id })), final.value, numbers.length, {
-      maxOperations: band.minOperations - 1, nodeBudget: BALANCE.generationSearchNodes, timeBudgetMs: BALANCE.generationSearchMs,
-    });
-    if (shallow.complete && !shallow.steps) return candidate;
-    if (performance.now() >= deadline) break;
+    if (!canReachWithin(numbers, final.value, count - 1)) return candidate;
   }
-  // A rare budget fallback remains certified solvable; difficulty is a heuristic.
-  if (fallback) return fallback;
-  // Guaranteed quick, legal construction for the default pools, even with unlucky randomness.
-  const numbers = [2, 3, 7, 8, 25, 75];
-  return { numbers, target: 200, difficulty: 'Easy', solution: [{ first: 4, second: 3, operator: '×', value: 200, resultId: 6 }] };
+  return fallbackRound(difficulty);
+}
+
+// These emergency certificates are independently checked by the regression
+// suite for exact minimum depth. Budget pressure must never change the band.
+export function fallbackRound(difficulty: Difficulty): GeneratedRound {
+  const rounds: Record<Difficulty, Omit<GeneratedRound, 'difficulty'>> = {
+    Easy: { target: 189, numbers: [6, 4, 4, 9, 50, 25], solution: [
+      { first: 5, second: 1, operator: '-', value: 21, resultId: 6 },
+      { first: 3, second: 6, operator: '×', value: 189, resultId: 7 },
+    ] },
+    Medium: { target: 215, numbers: [1, 3, 9, 8, 50, 25], solution: [
+      { first: 3, second: 1, operator: '×', value: 24, resultId: 6 },
+      { first: 2, second: 6, operator: '×', value: 216, resultId: 7 },
+      { first: 7, second: 0, operator: '-', value: 215, resultId: 8 },
+    ] },
+    Hard: { target: 557, numbers: [5, 4, 9, 8, 75, 50], solution: [
+      { first: 5, second: 2, operator: '×', value: 450, resultId: 6 },
+      { first: 1, second: 3, operator: '×', value: 32, resultId: 7 },
+      { first: 7, second: 6, operator: '+', value: 482, resultId: 8 },
+      { first: 8, second: 4, operator: '+', value: 557, resultId: 9 },
+    ] },
+  };
+  return { ...rounds[difficulty], difficulty };
 }

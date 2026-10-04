@@ -4,8 +4,8 @@ import type { SolutionStep } from './solver';
 import { BALANCE } from './balance';
 export interface Tile { id: number; value: number }
 export interface Round { target: number; tiles: Tile[]; history: Tile[][]; operations: number; undoCount: number; deadline: number; nextId: number; difficulty: Difficulty; solution: SolutionStep[] }
-export function createRound(streak = 0): Round {
-  const { target, numbers, difficulty, solution } = generateRound(streak);
+export function createRound(level = 0): Round {
+  const { target, numbers, difficulty, solution } = generateRound(level);
   return { target, difficulty, solution, tiles: numbers.map((value, id) => ({ id, value })), history: [], operations: 0, undoCount: 0, deadline: performance.now() + BALANCE.seconds * 1000, nextId: numbers.length };
 }
 export function remaining(round: Round): number { return Math.max(0, (round.deadline - performance.now()) / 1000); }

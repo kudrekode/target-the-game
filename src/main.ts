@@ -4,6 +4,7 @@ import { closest, combine, createRound, remaining, undo, type Round } from './ga
 import { OPERATORS, type Operator } from './game/operations';
 import { getHint } from './game/hints';
 import { multiplier, scoreRound } from './game/scoring';
+import { nextDifficultyLevel } from './game/difficulty';
 import { RewardedAdService } from './services/adService';
 import { trackEvent } from './services/analyticsService';
 import { loadStats, saveStats } from './services/saveService';
@@ -16,6 +17,7 @@ let screen: 'home' | 'game' | 'result' | 'stats' = 'home';
 let first: number | null = null;
 let operator: Operator | null = null;
 let streak = 0;
+let difficultyLevel = 0;
 let busy = false;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let roundVersion = 0;
@@ -37,7 +39,7 @@ function start() {
   clearInterval(ticker);
   clearTimeout(noticeTimer);
   roundVersion++;
-  round = createRound(streak);
+  round = createRound(difficultyLevel);
   lastWarningSecond = 11;
   tileSlots = new Map(round.tiles.map((tile, index) => [tile.id, index]));
   previousDistance = Infinity;
@@ -170,6 +172,7 @@ function finish(seconds = remaining(round)) {
   const resultTitle = exact ? 'EXACT!' : distance === 1 ? 'ONE AWAY!' : near ? 'SO CLOSE!' : 'ROUND OVER';
   feedback(exact ? 'successImpact' : near ? 'closeResult' : 'roundFailure');
   streak = exact ? streak + 1 : 0;
+  difficultyLevel = nextDifficultyLevel(difficultyLevel, exact);
   const score = scoreRound(distance, seconds, round.operations, streak);
   stats.roundsPlayed++; stats.totalScore += score.total;
   stats.bestScore = Math.max(stats.bestScore, score.total);
